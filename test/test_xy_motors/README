@@ -1,0 +1,25 @@
+# X/Y motor jog test
+
+Upload this test firmware, open Serial Monitor at **115200** baud, then type commands:
+
+| Command | Action |
+|---------|--------|
+| `x12` | Move X axis +12 steps |
+| `x-12` | Move X axis -12 steps |
+| `y50` | Move Y axis +50 steps |
+| `y-5` | Move Y axis -5 steps |
+
+Positive steps use the same direction convention as main firmware (Reverse = increasing position).
+
+Pins come from [`include/Config.h`](../../include/Config.h) (`Config::X`, `Config::Y`).
+
+## Upload and run
+
+From the project root:
+
+```bash
+pio test -e esp32doit-devkit-v1 -f test_xy_motors --upload
+pio device monitor -b 115200
+```
+
+If your PlatformIO version does not support `--upload` on test, build the test environment from the IDE **Test** task for `test_xy_motors`, or use **Upload** after selecting that test target.

@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../../../../../Desktop/GooseV3-ESP"
+		},
+		{
+			"name": "ESP32",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"clangd.arguments": [
+			"--compile-commands-dir=c:/Users/EMCar/Documents/PlatformIO/Projects/ESP32/.cache/clangd",
+			"--query-driver=C:/Users/EMCar/.platformio/packages/toolchain-*/bin/*,C:/Users/EMCar/.platformio/packages/tool-*/bin/*"
+		]
+	}
+}
