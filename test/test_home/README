@@ -1,0 +1,18 @@
+# Homing test
+
+Standalone firmware: **X, Y, and Z** each run a three-phase homing sequence on boot:
+
+1. **Seek** — move toward endstop until pressed (first click)
+2. **Backoff** — move away until endstop is released (unclick)
+3. **Reapproach** — move toward endstop again until pressed (second click) → **homed**
+
+Uses per-axis endstop pins, `Config::endstopDebounceMs`, and `Config::endstopPressedIsPinLow` from [`include/Config.h`](../../include/Config.h). Direction and speeds use `Config::Z::homeDir`, `seekSpeedStepsPerSec`, `backoffSpeedStepsPerSec`, and `reapproachSpeedStepsPerSec` for all axes.
+
+## Upload and monitor
+
+```bash
+pio test -e esp32doit-devkit-v1 -f test_home --upload
+pio device monitor -b 115200
+```
+
+Production firmware: `pio run -t upload`.

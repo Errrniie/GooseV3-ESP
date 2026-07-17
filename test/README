@@ -5,7 +5,10 @@ This directory is for PlatformIO tests and standalone test firmware.
 
 | Folder | Purpose |
 |--------|---------|
-| `test_xy_motors` | Serial jog: `x12`, `x-12`, `y50`, `y-3` |
+| `test_xy_motors` | X/Y/Z ping-pong: +100 / -100 steps continuously |
 | `test_endstop` | Endstop state monitor on serial |
+| `test_movement` | Manual X/Y/Z jog via serial (single or combined) |
+| `test_home` | Seek / backoff / reapproach homing per axis |
+| `test_zero_motors` | Home X/Y, zero positions, manual jog with X/Y totals |
 
 More information: https://docs.platformio.org/en/latest/advanced/unit-testing/index.html

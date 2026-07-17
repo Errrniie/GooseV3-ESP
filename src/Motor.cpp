@@ -9,6 +9,7 @@ void Motor::begin() {
 	// Initialize DIR to match the current logical direction_.
 	digitalWrite(dirPin_, (direction_ == Direction::Forward) ? HIGH : LOW);
 	enabled_ = true;
+	stepHigh_ = false;
 	nextEdgeDueUs_ = micros();
 }
 
@@ -54,14 +55,14 @@ void Motor::update() {
 	if ((int32_t)(now - nextEdgeDueUs_) < 0) return;
 
 	if (!stepHigh_) {
-		// Rising edge starts a step pulse.
+		// Idle LOW -> pulse ON (HIGH).
 		digitalWrite(stepPin_, HIGH);
 		stepHigh_ = true;
 		nextEdgeDueUs_ = now + pulseHighUs_;
 		return;
 	}
 
-	// Falling edge completes the pulse and advances position by one step.
+	// Pulse OFF (LOW); one step completed.
 	digitalWrite(stepPin_, LOW);
 	stepHigh_ = false;
 

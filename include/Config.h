@@ -11,14 +11,14 @@ namespace X {
 static constexpr uint8_t stepPin = 18;
 static constexpr uint8_t dirPin = 19;
 static constexpr uint8_t enablePin = 27;
-static constexpr uint8_t endstopPin = 34;
+static constexpr uint8_t endstopPin = 22;
 } // namespace X
 
 namespace Y {
 static constexpr uint8_t stepPin = 25;
 static constexpr uint8_t dirPin = 26;
 static constexpr uint8_t enablePin = 27;
-static constexpr uint8_t endstopPin = 35;
+static constexpr uint8_t endstopPin = 23;
 } // namespace Y
 
 namespace Z {
@@ -30,8 +30,8 @@ static constexpr uint8_t endstopPin = 13;
 // Homing profile for this axis (wired into Homing::Config in main.cpp).
 static constexpr Motor::Direction homeDir = Motor::Direction::Reverse;
 static constexpr float seekSpeedStepsPerSec = 70.0f;
-static constexpr float backoffSpeedStepsPerSec = 16.0f;
-static constexpr float reapproachSpeedStepsPerSec = 12.0f;
+static constexpr float backoffSpeedStepsPerSec = 60.0f;
+static constexpr float reapproachSpeedStepsPerSec = 50.0f;
 static constexpr float travelSpeedStepsPerSec = 70.0f;
 static constexpr long finalPositionSteps = -350;
 static constexpr uint32_t finalMoveTimeoutMs = 60000;

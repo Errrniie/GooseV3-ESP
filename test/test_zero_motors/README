@@ -1,0 +1,37 @@
+# Zero motors test (X/Y only)
+
+Standalone firmware that:
+
+1. **Homes** X and Y in **lockstep** (seek → backoff → reapproach): both start each phase together; the faster axis waits until the other finishes the phase before both advance
+2. **Zeros** X and Y position counters together (`setPositionSteps(0)`) without moving
+3. Enters **manual control** for X and Y only
+
+Z is not used.
+
+## Manual commands (115200, line-terminated)
+
+| Example | Action |
+|---------|--------|
+| `X-110` | Move X -110 steps |
+| `X10 Y20` | Move X +10 and Y +20 together |
+| `X 100 Y 100` | Both axes at once |
+
+After each command finishes (all requested axes done), serial prints the **running sum** of every delta you have entered per axis:
+
+```
+[Total X] …
+[Total Y] …
+```
+
+Totals accumulate from after zeroing.
+
+## Upload and monitor
+
+```bash
+pio test -e esp32doit-devkit-v1 -f test_zero_motors --upload
+pio device monitor -b 115200
+```
+
+Wait for `Homing complete — X/Y positions zeroed` before sending jog commands.
+
+Production firmware: `pio run -t upload`.

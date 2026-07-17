@@ -1,19 +1,12 @@
-# X/Y motor jog test
+# X/Y/Z ping-pong motor test
 
-Upload this test firmware, open Serial Monitor at **115200** baud, then type commands:
+Standalone firmware (no homing or mode subsystems). **X, Y, and Z** each move **100 steps forward** (+100, `Reverse`), then **100 steps backward** (-100, `Forward`), and repeat forever.
 
-| Command | Action |
-|---------|--------|
-| `x12` | Move X axis +12 steps |
-| `x-12` | Move X axis -12 steps |
-| `y50` | Move Y axis +50 steps |
-| `y-5` | Move Y axis -5 steps |
+Uses pins and `Config::manualSpeedStepsPerSec` from [`include/Config.h`](../../include/Config.h), shared enable on `Config::X::enablePin` (active-low: LOW = enabled), and the production `Motor` via [`Motor.cpp`](Motor.cpp) → [`src/Motor.cpp`](../../src/Motor.cpp).
 
-Positive steps use the same direction convention as main firmware (Reverse = increasing position).
+All three axes run in parallel. No Serial commands — motion starts automatically on boot.
 
-Pins come from [`include/Config.h`](../../include/Config.h) (`Config::X`, `Config::Y`).
-
-## Upload and run
+## Upload and monitor
 
 From the project root:
 
@@ -22,4 +15,6 @@ pio test -e esp32doit-devkit-v1 -f test_xy_motors --upload
 pio device monitor -b 115200
 ```
 
-If your PlatformIO version does not support `--upload` on test, build the test environment from the IDE **Test** task for `test_xy_motors`, or use **Upload** after selecting that test target.
+To return to production firmware: `pio run -t upload`.
+
+Set `upload_port` / `monitor_port` in `platformio.ini` or pass `--upload-port` / `--port` for your host.

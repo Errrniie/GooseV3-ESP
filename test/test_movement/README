@@ -1,0 +1,25 @@
+# Manual movement test
+
+Standalone firmware for **X, Y, and Z** manual jogs over serial (115200, line-terminated). No homing or mode subsystems.
+
+Uses pins and `Config::manualSpeedStepsPerSec` from [`include/Config.h`](../../include/Config.h). Shared enable on `Config::X::enablePin` (LOW = enabled). Production `Motor` via [`Motor.cpp`](Motor.cpp).
+
+## Commands
+
+| Example | Action |
+|---------|--------|
+| `X100` or `X 100` | Move X +100 steps |
+| `X-100` | Move X -100 steps |
+| `Y50` `Z-3` | Same pattern for Y and Z |
+| `X 100 Y 100 Z 100` | Move all three axes at once |
+
+Positive delta → `Reverse`; negative → `Forward`. Each axis tracks its own move independently.
+
+## Upload and monitor
+
+```bash
+pio test -e esp32doit-devkit-v1 -f test_movement --upload
+pio device monitor -b 115200
+```
+
+Production firmware: `pio run -t upload`.

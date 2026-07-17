@@ -42,6 +42,6 @@ private:
 	uint32_t nextEdgeDueUs_ = 0;
 	bool stepHigh_ = false;
 
-	static constexpr uint16_t pulseHighUs_ = 4;  // driver min pulse width
+	static constexpr uint16_t pulseHighUs_ = 5;  // STEP HIGH pulse width (µs)
 	static constexpr uint16_t dirSetupUs_ = 5;   // small guard after dir change
 };

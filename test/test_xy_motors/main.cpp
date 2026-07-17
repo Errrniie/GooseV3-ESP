@@ -1,5 +1,4 @@
-// Serial jog test for X and Y steppers.
-// Commands: x12, x-12, y50, y-3  (axis letter + signed step count)
+// Standalone X/Y/Z ping-pong test: each axis moves +100 steps, then -100, continuously.
 
 #include <Arduino.h>
 #include "Config.h"
@@ -7,42 +6,42 @@
 
 namespace {
 
+static constexpr long kPingPongSteps = 100;
+
 Motor motorX(Config::X::stepPin, Config::X::dirPin);
 Motor motorY(Config::Y::stepPin, Config::Y::dirPin);
+Motor motorZ(Config::Z::stepPin, Config::Z::dirPin);
 
-struct AxisJog {
+struct AxisPingPong {
 	Motor& motor;
-	char name;
+	const char* name;
 	long targetPos = 0;
+	long nextDelta = kPingPongSteps;
 	bool active = false;
 
-	explicit AxisJog(Motor& motorIn, char nameIn) : motor(motorIn), name(nameIn) {}
+	explicit AxisPingPong(Motor& motorIn, const char* nameIn)
+		: motor(motorIn), name(nameIn) {}
 
-	void start(long deltaSteps) {
-		if (deltaSteps == 0) {
-			Serial.print(name);
-			Serial.println(": 0 steps (no move)");
-			return;
-		}
-
-		const long startPos = motor.positionSteps();
-		targetPos = startPos + deltaSteps;
+	void startLeg(long deltaSteps) {
+		targetPos = motor.positionSteps() + deltaSteps;
 		active = true;
 
 		motor.enable(true);
 		motor.setDirection(deltaSteps > 0 ? Motor::Direction::Reverse : Motor::Direction::Forward);
 		motor.setSpeedStepsPerSec(Config::manualSpeedStepsPerSec);
+	}
 
+	void begin() {
+		nextDelta = kPingPongSteps;
 		Serial.print('[');
 		Serial.print(name);
-		Serial.print("] ");
-		Serial.print(startPos);
-		Serial.print(" -> ");
-		Serial.print(targetPos);
-		Serial.print(" (");
-		Serial.print(deltaSteps > 0 ? '+' : '\0');
-		Serial.print(deltaSteps);
-		Serial.println(" steps)");
+		Serial.print("] steps=");
+		Serial.println(motor.positionSteps());
+		Serial.print('[');
+		Serial.print(name);
+		Serial.print("] start, delta ");
+		Serial.println(nextDelta);
+		startLeg(nextDelta);
 	}
 
 	void update() {
@@ -51,100 +50,62 @@ struct AxisJog {
 		const long pos = motor.positionSteps();
 		const bool forward = (motor.direction() == Motor::Direction::Forward);
 		const bool done = forward ? (pos <= targetPos) : (pos >= targetPos);
+		if (!done) return;
 
-		if (done) {
-			motor.setSpeedStepsPerSec(0);
-			active = false;
-			Serial.print('[');
-			Serial.print(name);
-			Serial.print("] done at ");
-			Serial.println(pos);
-		}
+		motor.setSpeedStepsPerSec(0);
+
+		Serial.print('[');
+		Serial.print(name);
+		Serial.print("] steps=");
+		Serial.println(pos);
+
+		nextDelta = -nextDelta;
+
+		Serial.print('[');
+		Serial.print(name);
+		Serial.print("] reverse, delta ");
+		Serial.println(nextDelta);
+
+		startLeg(nextDelta);
 	}
 };
 
-AxisJog jogX{motorX, 'X'};
-AxisJog jogY{motorY, 'Y'};
-
-String inputBuffer;
-
-void setupSharedEnable() {
-	pinMode(Config::X::enablePin, OUTPUT);
-	// Active-low drivers: LOW = enabled
-	digitalWrite(Config::X::enablePin, LOW);
-}
-
-bool parseAxisCommand(const String& line, char& axisOut, long& stepsOut) {
-	if (line.length() < 2) return false;
-
-	const char axis = static_cast<char>(tolower(static_cast<unsigned char>(line.charAt(0))));
-	if (axis != 'x' && axis != 'y') return false;
-
-	String numPart = line.substring(1);
-	numPart.trim();
-	if (numPart.length() == 0) return false;
-
-	char* endPtr = nullptr;
-	const long steps = strtol(numPart.c_str(), &endPtr, 10);
-	if (endPtr == nullptr || *endPtr != '\0') return false;
-
-	axisOut = axis;
-	stepsOut = steps;
-	return true;
-}
-
-void handleLine(const String& line) {
-	char axis = 0;
-	long steps = 0;
-	if (!parseAxisCommand(line, axis, steps)) {
-		Serial.println("Unknown command. Use x12, x-12, y50, y-3");
-		return;
-	}
-
-	if (axis == 'x') {
-		jogX.start(steps);
-	} else {
-		jogY.start(steps);
-	}
-}
+AxisPingPong pingX{motorX, "X"};
+AxisPingPong pingY{motorY, "Y"};
+AxisPingPong pingZ{motorZ, "Z"};
 
 } // namespace
 
 void setup() {
 	Serial.begin(115200);
-	delay(500);
 
-	setupSharedEnable();
+	pinMode(Config::X::enablePin, OUTPUT);
+	digitalWrite(Config::X::enablePin, LOW);
+
 	motorX.begin();
 	motorY.begin();
+	motorZ.begin();
+
+	pingX.begin();
+	pingY.begin();
+	pingZ.begin();
 
 	Serial.println();
-	Serial.println("=== X/Y motor jog test ===");
-	Serial.println("Type axis + signed steps, e.g. x12  x-12  y100  y-5");
+	Serial.println("=== X/Y/Z ping-pong test ===");
+	Serial.print("Each axis: +");
+	Serial.print(kPingPongSteps);
+	Serial.print(" / -");
+	Serial.print(kPingPongSteps);
+	Serial.println(" steps, repeating");
 	Serial.print("Speed (steps/s): ");
 	Serial.println(Config::manualSpeedStepsPerSec);
-	Serial.print("X pos=");
-	Serial.print(motorX.positionSteps());
-	Serial.print("  Y pos=");
-	Serial.println(motorY.positionSteps());
 }
 
 void loop() {
-	while (Serial.available() > 0) {
-		const char c = static_cast<char>(Serial.read());
-		if (c == '\n' || c == '\r') {
-			if (inputBuffer.length() > 0) {
-				inputBuffer.trim();
-				handleLine(inputBuffer);
-				inputBuffer = "";
-			}
-		} else {
-			inputBuffer += c;
-		}
-	}
-
 	motorX.update();
 	motorY.update();
-	jogX.update();
-	jogY.update();
+	motorZ.update();
+	pingX.update();
+	pingY.update();
+	pingZ.update();
 }

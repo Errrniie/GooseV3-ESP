@@ -1,6 +1,6 @@
 {
     "clangd.arguments": [
-        "--compile-commands-dir=/home/LxSparda/Desktop/GooseV3-ESP32/GooseV3-ESP/.cache/clangd",
+        "--compile-commands-dir=/home/LxSparda/Desktop/GooseV3-ESP/.cache/clangd",
         "--query-driver=/home/LxSparda/.platformio/packages/toolchain-*/bin/*,/home/LxSparda/.platformio/packages/tool-*/bin/*"
     ]
 }

@@ -1,0 +1,24 @@
+# Endstop monitor test
+
+Standalone firmware to verify **X, Y, and Z** endstops. Uses per-axis pins and shared settings from [`include/Config.h`](../../include/Config.h):
+
+| Axis | GPIO | Config |
+|------|------|--------|
+| X | `Config::X::endstopPin` (34) | `Config::endstopDebounceMs`, `Config::endstopPressedIsPinLow` |
+| Y | `Config::Y::endstopPin` (35) | same |
+| Z | `Config::Z::endstopPin` (13) | same |
+
+Wiring assumption: **normally open** switch to GND with `INPUT_PULLUP` (`endstopPressedIsPinLow = true`) — idle **RELEASED**, pressed **PRESSED**.
+
+Serial prints initial state on boot, then **PRESSED** / **RELEASED** whenever a switch changes.
+
+## Upload and monitor
+
+From the project root:
+
+```bash
+pio test -e esp32doit-devkit-v1 -f test_endstop --upload
+pio device monitor -b 115200
+```
+
+To return to production firmware: `pio run -t upload`.
