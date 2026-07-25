@@ -11,7 +11,7 @@ All three axes run in parallel. No Serial commands — motion starts automatical
 From the project root:
 
 ```bash
-pio test -e esp32doit-devkit-v1 -f test_xy_motors --upload
+pio test -e esp32doit-devkit-v1 -f test_xy_motors --without-testing
 pio device monitor -b 115200
 ```
 

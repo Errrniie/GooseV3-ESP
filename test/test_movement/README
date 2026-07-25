@@ -18,7 +18,7 @@ Positive delta → `Reverse`; negative → `Forward`. Each axis tracks its own m
 ## Upload and monitor
 
 ```bash
-pio test -e esp32doit-devkit-v1 -f test_movement --upload
+pio test -e esp32doit-devkit-v1 -f test_movement --without-testing
 pio device monitor -b 115200
 ```
 

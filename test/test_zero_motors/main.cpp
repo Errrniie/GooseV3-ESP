@@ -19,6 +19,8 @@ struct AxisHoming {
 	Endstop& endstop;
 	const char* name;
 	bool phaseDone = false;
+	bool backoffReleased = false;
+	long backoffTargetPos = 0;
 
 	explicit AxisHoming(Motor& motorIn, Endstop& endstopIn, const char* nameIn)
 		: motor(motorIn), endstop(endstopIn), name(nameIn) {}
@@ -42,6 +44,7 @@ struct AxisHoming {
 
 	void startBackoff() {
 		phaseDone = false;
+		backoffReleased = false;
 		motor.enable(true);
 		motor.setDirection(awayDir());
 		motor.setSpeedStepsPerSec(Config::Z::backoffSpeedStepsPerSec);
@@ -76,17 +79,33 @@ struct AxisHoming {
 		}
 	}
 
-	// During Backoff: wait until released, then stop and mark phaseDone.
+	// During Backoff: move away until released, then a fixed margin further, then stop.
 	void updateBackoff() {
 		endstop.update();
 		if (phaseDone) return;
 
-		if (!endstop.isPressed()) {
+		// Phase 1: keep moving away until the switch reports released, then latch a
+		// target a fixed margin further in the away direction.
+		if (!backoffReleased) {
+			if (!endstop.isPressed()) {
+				backoffReleased = true;
+				const bool away = (motor.direction() == Motor::Direction::Forward);
+				backoffTargetPos = motor.positionSteps()
+						+ (away ? -Config::Z::backoffMarginSteps : Config::Z::backoffMarginSteps);
+			}
+			return;
+		}
+
+		// Phase 2: keep going until the margin is covered (>= handles overshoot, no hang).
+		const bool away = (motor.direction() == Motor::Direction::Forward);
+		const bool reached = away ? (motor.positionSteps() <= backoffTargetPos)
+								  : (motor.positionSteps() >= backoffTargetPos);
+		if (reached) {
 			stopMotor();
 			phaseDone = true;
 			Serial.print('[');
 			Serial.print(name);
-			Serial.println("] endstop released — waiting for other axis");
+			Serial.println("] endstop released + margin — waiting for other axis");
 		}
 	}
 
@@ -130,11 +149,14 @@ struct ManualLeg {
 		if (deltaSteps == 0) return;
 
 		const long startPos = motor.positionSteps();
-		targetPos = startPos + deltaSteps;
+		// Direction flipped: positive delta now drives Forward, negative drives Reverse.
+		// Motor counts Reverse as +1 step and Forward as -1, so the target must mirror the
+		// flipped direction (startPos - delta) for the move to complete.
+		targetPos = startPos - deltaSteps;
 		active = true;
 
 		motor.enable(true);
-		motor.setDirection(deltaSteps > 0 ? Motor::Direction::Reverse : Motor::Direction::Forward);
+		motor.setDirection(deltaSteps > 0 ? Motor::Direction::Forward : Motor::Direction::Reverse);
 		motor.setSpeedStepsPerSec(Config::manualSpeedStepsPerSec);
 
 		Serial.print("[Move ");

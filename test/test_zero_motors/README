@@ -28,7 +28,7 @@ Totals accumulate from after zeroing.
 ## Upload and monitor
 
 ```bash
-pio test -e esp32doit-devkit-v1 -f test_zero_motors --upload
+pio test -e esp32doit-devkit-v1 -f test_zero_motors --without-testing
 pio device monitor -b 115200
 ```
 

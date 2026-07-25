@@ -11,7 +11,7 @@ Uses per-axis endstop pins, `Config::endstopDebounceMs`, and `Config::endstopPre
 ## Upload and monitor
 
 ```bash
-pio test -e esp32doit-devkit-v1 -f test_home --upload
+pio test -e esp32doit-devkit-v1 -f test_home --without-testing
 pio device monitor -b 115200
 ```
 

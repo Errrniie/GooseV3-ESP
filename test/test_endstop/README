@@ -17,7 +17,7 @@ Serial prints initial state on boot, then **PRESSED** / **RELEASED** whenever a 
 From the project root:
 
 ```bash
-pio test -e esp32doit-devkit-v1 -f test_endstop --upload
+pio test -e esp32doit-devkit-v1 -f test_endstop --without-testing
 pio device monitor -b 115200
 ```
 

@@ -29,9 +29,14 @@ static constexpr uint8_t endstopPin = 13;
 
 // Homing profile for this axis (wired into Homing::Config in main.cpp).
 static constexpr Motor::Direction homeDir = Motor::Direction::Reverse;
-static constexpr float seekSpeedStepsPerSec = 70.0f;
-static constexpr float backoffSpeedStepsPerSec = 60.0f;
-static constexpr float reapproachSpeedStepsPerSec = 50.0f;
+static constexpr float seekSpeedStepsPerSec = 40.0f;
+static constexpr float backoffSpeedStepsPerSec = 20.0f;
+// Final homing touch that sets the zero: crawl so debounce/loop latency costs a
+// tiny fraction of a step (was 50 -> ~1 step of scatter = ~1.1" at 3 ft).
+static constexpr float reapproachSpeedStepsPerSec = 10.0f;
+// Extra steps to back off *past* switch release before reapproaching, so the final
+// touch always crawls in over the same distance regardless of where boot/reset left it.
+static constexpr long backoffMarginSteps = 6;
 static constexpr float travelSpeedStepsPerSec = 70.0f;
 static constexpr long finalPositionSteps = -350;
 static constexpr uint32_t finalMoveTimeoutMs = 60000;
