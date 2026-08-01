@@ -1,4 +1,7 @@
-// Home X/Y in lockstep (seek / backoff / reapproach), zero together, then manual jog.
+// Home X/Y in lockstep, zero together, then AUTO-move to a fixed known point
+// (X +339, Y +282) with no manual input. Press 'r' to reset → it re-homes and
+// repeats. Purpose: shoot the same commanded point over and over to measure
+// home-to-shot repeatability.
 
 #include <Arduino.h>
 #include "Config.h"
@@ -6,7 +9,15 @@
 #include "Endstop.h"
 #include "SP_System.h"
 
-enum class AppPhase : uint8_t { Homing, Manual };
+// After each home the axes are zeroed at (0,0), then driven to this fixed point.
+// Values are in 16x-microstep PULSES (positive = same convention as the X100/Y20
+// jog in test_zero_motors):
+//   X 5424 = 339 * 16   |   Y 4512 = 282 * 16   (the old 1x aim point, scaled).
+// NOTE: if you change Config::microstepping (currently 16), rescale these to match.
+static constexpr long kKnownX = 5424;
+static constexpr long kKnownY = 4512;
+
+enum class AppPhase : uint8_t { Homing, AutoMove, Done };
 enum class HomingPhase : uint8_t { Seek, Backoff, Reapproach, Done };
 
 Motor motorX(Config::X::stepPin, Config::X::dirPin);
@@ -69,7 +80,6 @@ struct AxisHoming {
 		Serial.println("] ready");
 	}
 
-	// During Seek: wait until pressed, then stop and mark phaseDone.
 	void updateSeek() {
 		endstop.update();
 		if (phaseDone) return;
@@ -86,13 +96,10 @@ struct AxisHoming {
 		}
 	}
 
-	// During Backoff: move away until released, then a fixed margin further, then stop.
 	void updateBackoff() {
 		endstop.update();
 		if (phaseDone) return;
 
-		// Phase 1: keep moving away until the switch reports released, then latch a
-		// target a fixed margin further in the away direction.
 		if (!backoffReleased) {
 			if (!endstop.isPressed()) {
 				backoffReleased = true;
@@ -103,7 +110,6 @@ struct AxisHoming {
 			return;
 		}
 
-		// Phase 2: keep going until the margin is covered (>= handles overshoot, no hang).
 		const bool away = (motor.direction() == Motor::Direction::Forward);
 		const bool reached = away ? (motor.positionSteps() <= backoffTargetPos)
 								  : (motor.positionSteps() >= backoffTargetPos);
@@ -116,7 +122,6 @@ struct AxisHoming {
 		}
 	}
 
-	// During Reapproach: wait until pressed, then stop and mark phaseDone.
 	void updateReapproach() {
 		endstop.update();
 		if (phaseDone) return;
@@ -136,34 +141,20 @@ struct AxisHoming {
 	}
 };
 
-AxisHoming homingX{motorX, endstopX, "X"};
-AxisHoming homingY{motorY, endstopY, "Y"};
-HomingPhase homingPhase = HomingPhase::Seek;
-
-enum class ManualAxis : uint8_t { X, Y };
-
-String inputBuffer;
-AppPhase appPhase = AppPhase::Homing;
-bool commandMovePending = false;
-
-long totalX = 0;
-long totalY = 0;
-
-struct ManualLeg {
+// One axis auto-move to a target delta (same flipped convention as test_zero_motors:
+// positive delta drives Forward, target mirrors as startPos - delta).
+struct AxisMove {
 	Motor& motor;
 	const char* name;
 	long targetPos = 0;
 	bool active = false;
 
-	explicit ManualLeg(Motor& motorIn, const char* nameIn) : motor(motorIn), name(nameIn) {}
+	explicit AxisMove(Motor& motorIn, const char* nameIn) : motor(motorIn), name(nameIn) {}
 
 	void start(long deltaSteps) {
 		if (deltaSteps == 0) return;
 
 		const long startPos = motor.positionSteps();
-		// Direction flipped: positive delta now drives Forward, negative drives Reverse.
-		// Motor counts Reverse as +1 step and Forward as -1, so the target must mirror the
-		// flipped direction (startPos - delta) for the move to complete.
 		targetPos = startPos - deltaSteps;
 		active = true;
 
@@ -173,13 +164,9 @@ struct ManualLeg {
 
 		Serial.print("[Move ");
 		Serial.print(name);
-		Serial.print("] From ");
-		Serial.print(startPos);
-		Serial.print(" to ");
-		Serial.print(targetPos);
-		Serial.print(" (delta ");
+		Serial.print("] to known ");
 		Serial.print(deltaSteps);
-		Serial.println(")");
+		Serial.println(" steps");
 	}
 
 	void update() {
@@ -195,148 +182,17 @@ struct ManualLeg {
 
 		Serial.print("[Stop ");
 		Serial.print(name);
-		Serial.println("] move complete");
+		Serial.println("] at known point");
 	}
 };
 
-ManualLeg legX{motorX, "X"};
-ManualLeg legY{motorY, "Y"};
+AxisHoming homingX{motorX, endstopX, "X"};
+AxisHoming homingY{motorY, endstopY, "Y"};
+AxisMove moveX{motorX, "X"};
+AxisMove moveY{motorY, "Y"};
 
-ManualLeg& legForAxis(ManualAxis axis) {
-	return (axis == ManualAxis::Y) ? legY : legX;
-}
-
-long& totalForAxis(ManualAxis axis) {
-	return (axis == ManualAxis::Y) ? totalY : totalX;
-}
-
-void printTotals() {
-	Serial.print("[Total X] ");
-	Serial.println(totalX);
-	Serial.print("[Total Y] ");
-	Serial.println(totalY);
-}
-
-bool parseAxisChar(char c, ManualAxis& outAxis) {
-	switch (c) {
-		case 'X':
-		case 'x':
-			outAxis = ManualAxis::X;
-			return true;
-		case 'Y':
-		case 'y':
-			outAxis = ManualAxis::Y;
-			return true;
-		default:
-			return false;
-	}
-}
-
-bool parseSignedLongFrom(const String& text, size_t& index, long& outValue) {
-	while (index < text.length() && isspace(static_cast<unsigned char>(text.charAt(index)))) {
-		index++;
-	}
-	if (index >= text.length()) return false;
-
-	const size_t start = index;
-	if (text.charAt(index) == '+' || text.charAt(index) == '-') {
-		index++;
-	}
-	while (index < text.length() && isdigit(static_cast<unsigned char>(text.charAt(index)))) {
-		index++;
-	}
-	if (index == start || (index == start + 1 && !isdigit(static_cast<unsigned char>(text.charAt(start))))) {
-		return false;
-	}
-
-	const String numPart = text.substring(start, index);
-	char* endPtr = nullptr;
-	outValue = strtol(numPart.c_str(), &endPtr, 10);
-	return endPtr != nullptr && *endPtr == '\0';
-}
-
-void handleLine(const String& line) {
-	size_t index = 0;
-	bool anyCommand = false;
-	bool anyMove = false;
-
-	while (index < line.length()) {
-		while (index < line.length() && isspace(static_cast<unsigned char>(line.charAt(index)))) {
-			index++;
-		}
-		if (index >= line.length()) break;
-
-		const char axisChar = line.charAt(index);
-		ManualAxis axis;
-		if (!parseAxisChar(axisChar, axis)) {
-			Serial.println("Unknown command. Use X100, X-110, Y 20, or X 10 Y 20");
-			return;
-		}
-		index++;
-
-		long steps = 0;
-		if (!parseSignedLongFrom(line, index, steps)) {
-			Serial.println("Unknown command. Use X100, X-110, Y 20, or X 10 Y 20");
-			return;
-		}
-
-		totalForAxis(axis) += steps;
-		legForAxis(axis).start(steps);
-		anyCommand = true;
-		if (steps != 0) anyMove = true;
-	}
-
-	if (!anyCommand) {
-		Serial.println("Unknown command. Use X100, X-110, Y 20, or X 10 Y 20");
-		return;
-	}
-
-	if (anyMove) commandMovePending = true;
-	else printTotals();
-}
-
-void handleSerial() {
-	while (Serial.available() > 0) {
-		const char c = static_cast<char>(Serial.read());
-		if (c == '\n' || c == '\r') {
-			if (inputBuffer.length() == 0) continue;
-			inputBuffer.trim();
-			handleLine(inputBuffer);
-			inputBuffer = "";
-			continue;
-		}
-
-		inputBuffer += c;
-	}
-}
-
-void updateManualMoves() {
-	legX.update();
-	legY.update();
-
-	if (!commandMovePending) return;
-	if (legX.active || legY.active) return;
-
-	commandMovePending = false;
-	printTotals();
-}
-
-void enterManualPhase() {
-	motorX.setPositionSteps(0);
-	motorY.setPositionSteps(0);
-
-	totalX = 0;
-	totalY = 0;
-	appPhase = AppPhase::Manual;
-	homingPhase = HomingPhase::Done;
-
-	Serial.println();
-	Serial.println("=== Homing complete — X and Y zeroed together ===");
-	Serial.println("Manual commands: X100, X-110, X 10 Y 20");
-	Serial.print("Speed (steps/s): ");
-	Serial.println(Config::manualSpeedStepsPerSec);
-	printTotals();
-}
+HomingPhase homingPhase = HomingPhase::Seek;
+AppPhase appPhase = AppPhase::Homing;
 
 void startSeekPhase() {
 	homingPhase = HomingPhase::Seek;
@@ -359,22 +215,35 @@ void startReapproachPhase() {
 	homingY.startReapproach();
 }
 
+void enterAutoMove() {
+	motorX.setPositionSteps(0);
+	motorY.setPositionSteps(0);
+	appPhase = AppPhase::AutoMove;
+	homingPhase = HomingPhase::Done;
+
+	Serial.println();
+	Serial.println("=== Homed & zeroed — auto-moving to known point ===");
+	Serial.print("Target: X +");
+	Serial.print(kKnownX);
+	Serial.print("  Y +");
+	Serial.println(kKnownY);
+
+	moveX.start(kKnownX);
+	moveY.start(kKnownY);
+}
+
 void updateSyncedHoming() {
 	switch (homingPhase) {
 		case HomingPhase::Seek:
 			homingX.updateSeek();
 			homingY.updateSeek();
-			if (homingX.phaseDone && homingY.phaseDone) {
-				startBackoffPhase();
-			}
+			if (homingX.phaseDone && homingY.phaseDone) startBackoffPhase();
 			break;
 
 		case HomingPhase::Backoff:
 			homingX.updateBackoff();
 			homingY.updateBackoff();
-			if (homingX.phaseDone && homingY.phaseDone) {
-				startReapproachPhase();
-			}
+			if (homingX.phaseDone && homingY.phaseDone) startReapproachPhase();
 			break;
 
 		case HomingPhase::Reapproach:
@@ -382,20 +251,27 @@ void updateSyncedHoming() {
 			homingY.updateReapproach();
 			if (homingX.phaseDone && homingY.phaseDone) {
 				Serial.println("[XY] both pressed (2nd) — homed");
-				// Repeatability probe: if these deltas differ run-to-run, the switch is
-				// being latched at different step counts (software/timing/phase), not
-				// mechanical wobble. Compare this line across the next 9 resets.
 				Serial.print("[Repeatability] seek->reapproach steps  X=");
 				Serial.print(homingX.reapproachTriggerPos - homingX.seekTriggerPos);
 				Serial.print("  Y=");
 				Serial.println(homingY.reapproachTriggerPos - homingY.seekTriggerPos);
-				enterManualPhase();
+				enterAutoMove();
 			}
 			break;
 
 		case HomingPhase::Done:
 			break;
 	}
+}
+
+void updateAutoMove() {
+	moveX.update();
+	moveY.update();
+
+	if (moveX.active || moveY.active) return;
+
+	appPhase = AppPhase::Done;
+	Serial.println("=== At known point. Press 'r' to re-home and repeat. ===");
 }
 
 void setup() {
@@ -408,8 +284,8 @@ void setup() {
 	motorY.begin();
 
 	Serial.println();
-	Serial.println("=== Zero motors test (X/Y synced homing) ===");
-	Serial.println("X and Y start/advance/finish each phase together.");
+	Serial.println("=== Zero motors KNOWN-point test (X/Y synced homing) ===");
+	Serial.println("Homes, zeroes, then auto-moves to the fixed target. 'r' repeats.");
 
 	homingX.begin();
 	homingY.begin();
@@ -421,11 +297,14 @@ void loop() {
 	motorX.update();
 	motorY.update();
 
-	if (appPhase == AppPhase::Homing) {
-		updateSyncedHoming();
-		return;
+	switch (appPhase) {
+		case AppPhase::Homing:
+			updateSyncedHoming();
+			break;
+		case AppPhase::AutoMove:
+			updateAutoMove();
+			break;
+		case AppPhase::Done:
+			break;
 	}
-
-	handleSerial();
-	updateManualMoves();
 }

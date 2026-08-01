@@ -20,6 +20,8 @@ public:
 
 		long backoffStepsMax = 400;
 		uint32_t backoffTimeoutMs = 15000;
+		// Extra steps to travel past switch release before reapproaching (0 = none).
+		long backoffMarginSteps = 0;
 
 		long reapproachStepsMax = 6000;
 		uint32_t reapproachTimeoutMs = 15000;
@@ -64,6 +66,9 @@ private:
 	long phaseStartPos_ = 0;
 	uint32_t phaseStartMs_ = 0;
 	long homeZeroPos_ = 0;
+
+	bool backoffReleased_ = false;
+	long backoffTargetPos_ = 0;
 
 	void enter_(State s);
 	void fail_(const char* reason);

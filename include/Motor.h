@@ -42,6 +42,10 @@ private:
 	uint32_t nextEdgeDueUs_ = 0;
 	bool stepHigh_ = false;
 
-	static constexpr uint16_t pulseHighUs_ = 5;  // STEP HIGH pulse width (µs)
-	static constexpr uint16_t dirSetupUs_ = 5;   // small guard after dir change
+	static constexpr uint16_t pulseHighUs_ = 5;  // STEP HIGH pulse width (µs); > driver's 1.5µs filter
+	// DIR-before-STEP setup. Closed-loop drivers latch direction ~5µs before the
+	// first pulse; sitting at exactly 5µs let post-reversal pulses count the wrong
+	// way (probabilistic whole-step home error, worse on the marginal axis). 60µs
+	// is free at homing speeds (>=25ms/step) and puts us well clear of the window.
+	static constexpr uint16_t dirSetupUs_ = 60;
 };

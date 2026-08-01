@@ -6,6 +6,7 @@
 #include <AppState.h>
 #include <Search.h>
 #include <Tracking.h>
+#include <SP_System.h>
 
 Motor motorZ(Config::Z::stepPin, Config::Z::dirPin);
 Motor motorX(Config::X::stepPin, Config::X::dirPin);
@@ -17,6 +18,7 @@ Homing::Config homingCfg = [] {
 	cfg.homeDir = Config::Z::homeDir;
 	cfg.seekSpeedStepsPerSec = Config::Z::seekSpeedStepsPerSec;
 	cfg.backoffSpeedStepsPerSec = Config::Z::backoffSpeedStepsPerSec;
+	cfg.backoffMarginSteps = Config::Z::backoffMarginSteps;
 	cfg.reapproachSpeedStepsPerSec = Config::Z::reapproachSpeedStepsPerSec;
 	cfg.travelSpeedStepsPerSec = Config::Z::travelSpeedStepsPerSec;
 	cfg.finalPositionSteps = Config::Z::finalPositionSteps;
@@ -84,7 +86,7 @@ void printManualPrompt() {
 	if (Config::afterHomingManualTrackingTest) {
 		Serial.println("Type 'd' to stop (partial Z move updates total by signed distance).");
 	} else {
-		Serial.println("Type 'd' to stop motion. When search is paused, 'r' resumes sweep.");
+		Serial.println("Type 'd' to stop motion. When search is paused, 'c' resumes sweep. 'r' resets the ESP.");
 	}
 	Serial.print("degreesPerStep=");
 	Serial.println(Config::degreesPerStep, 6);
@@ -215,7 +217,8 @@ void handleSerial() {
 			continue;
 		}
 
-		if (c == 'r' || c == 'R') {
+		// 'r'/'R' is reserved for software reset (SP::poll); 'c' resumes the sweep.
+		if (c == 'c' || c == 'C') {
 			if (appState == AppState::Searching && search.isPaused() && manualAxis == ManualAxis::None) {
 				search.resume(motorZ);
 				Serial.println("[Search] Resumed.");
@@ -236,7 +239,7 @@ void handleSerial() {
 
 			if (appState == AppState::Searching && !search.isPaused()) {
 				if (line.length() == 0) {
-					Serial.println("Search active: motion is sweeping. Type 'd' to pause, then you can jog; 'r' resumes.");
+					Serial.println("Search active: motion is sweeping. Type 'd' to pause, then you can jog; 'c' resumes.");
 					continue;
 				}
 				long steps = 0;
@@ -315,6 +318,7 @@ void setup() {
 }
 
 void loop() {
+	SP::poll();
 	handleSerial();
 	endstop.update();
 

@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "Endstop.h"
+#include "SP_System.h"
 
 namespace {
 
@@ -76,6 +77,7 @@ void setup() {
 }
 
 void loop() {
+	SP::poll();
 	axisX.update();
 	axisY.update();
 	axisZ.update();

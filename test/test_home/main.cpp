@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Motor.h"
 #include "Endstop.h"
+#include "SP_System.h"
 
 Motor motorX(Config::X::stepPin, Config::X::dirPin);
 Motor motorY(Config::Y::stepPin, Config::Y::dirPin);
@@ -150,6 +151,7 @@ void setup() {
 }
 
 void loop() {
+	SP::poll();
 	motorX.update();
 	motorY.update();
 	motorZ.update();

@@ -49,7 +49,24 @@ void Homing::update() {
 		case State::Backoff: {
 			if ((nowMs - phaseStartMs_) > cfg_.backoffTimeoutMs) return fail_("backoff timeout");
 			if (travel > cfg_.backoffStepsMax) return fail_("backoff steps max exceeded");
-			if (!pressed) return enter_(State::Reapproach);
+
+			// Phase 1: keep moving away until the switch reports released, then latch a
+			// target a fixed margin further in the away direction.
+			if (!backoffReleased_) {
+				if (!pressed) {
+					backoffReleased_ = true;
+					const bool away = (motor_.direction() == Motor::Direction::Forward);
+					backoffTargetPos_ = motor_.positionSteps()
+							+ (away ? -cfg_.backoffMarginSteps : cfg_.backoffMarginSteps);
+				}
+				return;
+			}
+
+			// Phase 2: keep going until the margin is covered (>= handles overshoot, no hang).
+			const bool away = (motor_.direction() == Motor::Direction::Forward);
+			const bool reached = away ? (motor_.positionSteps() <= backoffTargetPos_)
+									  : (motor_.positionSteps() >= backoffTargetPos_);
+			if (reached) return enter_(State::Reapproach);
 			return;
 		}
 
@@ -99,6 +116,7 @@ void Homing::enter_(State s) {
 			return;
 
 		case State::Backoff:
+			backoffReleased_ = false;
 			motor_.enable(true);
 			motor_.setDirection(awayDir_());
 			motor_.setSpeedStepsPerSec(cfg_.backoffSpeedStepsPerSec);
